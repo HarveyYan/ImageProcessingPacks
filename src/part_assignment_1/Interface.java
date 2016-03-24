@@ -1,4 +1,4 @@
-package 图像处理HW1;
+package part_assignment_1;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -7,9 +7,11 @@ import java.awt.FlowLayout;
 import java.awt.Graphics;
 import java.awt.HeadlessException;
 import java.awt.Image;
+import java.awt.color.ColorSpace;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.image.BufferedImage;
+import java.awt.image.ColorConvertOp;
 import java.awt.image.ColorModel;
 import java.awt.image.MemoryImageSource;
 import java.awt.image.PixelGrabber;
@@ -36,33 +38,35 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.border.Border;
 
+import part_assignment_2.DiscreetCosineTransformation;
+import part_assignment_2.FourierTransformation;
+
 public class Interface extends JFrame{
 	
 	private String path = null;
 	private JLabel image;
 	private int width = 800;
 	private int height = 600;
-	private int[] pixels;
-	private int imageWidth;
-	private int imageHeight;
-	private int minL;
-	private int maxL;
-	private JButton previous;
-	private JButton next;
-	private ArrayList<int[]> history = new ArrayList<int[]>();
-	private int pointer = -1;
-	private boolean marker_prev = false;
+	
+	public int[] pixels;
+	public int imageWidth;
+	public int imageHeight;
+	public int minL;
+	public int maxL;
+	
+	private ArrayList<int[]> previous = new ArrayList<int[]>();
+	private ArrayList<int[]> next = new ArrayList<int[]>();
 	
 	public Interface(){
-		super("HW1");
+		super("Digital Image Processing");
 		setSize(width, height);
 		
 		image = new JLabel();
 		JScrollPane pane = new JScrollPane(image);
 		getContentPane().add(pane, BorderLayout.CENTER);
 		
-		previous = new JButton("Previous");
-		next = new JButton("Next");
+		JButton previous = new JButton("Previous");
+		JButton next = new JButton("Next");
 		JPanel panel = new JPanel();
 		panel.add(previous);
 		panel.add(next);
@@ -75,7 +79,7 @@ public class Interface extends JFrame{
 		setJMenuBar(bar);
 		JMenu menu_file = new JMenu("File");
 		bar.add(menu_file);
-		JMenu menu_operations = new JMenu("Operations");
+		JMenu menu_operations = new JMenu("Intensity Operations");
 		bar.add(menu_operations);
 		
 		JMenuItem open = new JMenuItem("Open");
@@ -100,6 +104,17 @@ public class Interface extends JFrame{
 		segmentedTransformation.addActionListener(new TransformationActionListener());
 		menu_operations.add(segmentedTransformation);
 		
+		JMenu menu_fourier = new JMenu("Fourier Transformation");
+		bar.add(menu_fourier);
+		
+		JMenuItem fastFourierTransformation = new JMenuItem("Fast Fourier Transformation");
+		fastFourierTransformation.addActionListener(new FourierTransformation(this));
+		menu_fourier.add(fastFourierTransformation);
+		
+		JMenuItem  discreetCosineTransformation = new JMenuItem("Discreet Cosine Transformation");
+		discreetCosineTransformation.addActionListener(new DiscreetCosineTransformation(this));
+		menu_fourier.add(discreetCosineTransformation);
+		
 		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		setVisible(true);
 	}
@@ -115,6 +130,9 @@ public class Interface extends JFrame{
 				return;
 			try {
 				buffer = ImageIO.read(new File(path));
+				//一开始就直接转换成灰度图像的方式
+				ColorConvertOp cco=new ColorConvertOp(ColorSpace.getInstance(ColorSpace.CS_GRAY),null);
+		        cco.filter(buffer,buffer);
 			} catch (IOException e1) {
 				JOptionPane.showMessageDialog((Component)e.getSource(), "Error loading image");
 				e1.printStackTrace();
@@ -145,13 +163,7 @@ public class Interface extends JFrame{
 				return;
 			ColorModel model = ColorModel.getRGBdefault();
 			
-			//save history
-			if (pointer != (history.size() - 1) && !history.isEmpty())
-				for (int i = pointer + 1 ; i < history.size(); i++)
-					history.remove(i);
-			history.add(pixels.clone());
-			pointer = history.size() - 1;
-			System.out.println(pointer +  " " + history.size());
+			saveHistory();
 			
 			for (int j = 0 ; j < imageHeight; j ++ ){
 				for (int i =  0 ; i < imageWidth ; i ++){
@@ -184,13 +196,7 @@ public class Interface extends JFrame{
 			double constant = (double)(maxL-minL)/(imageHeight*imageWidth);
 			ColorModel model = ColorModel.getRGBdefault();
 			
-			//save history
-			if (pointer != (history.size() - 1) && !history.isEmpty())
-				for (int i = pointer + 1 ; i < history.size(); i++)
-					history.remove(i);
-			history.add(pixels.clone());
-			pointer = history.size() - 1;
-			System.out.println(pointer +  " " + history.size());
+			saveHistory();
 			
 			for (int j = 0 ; j < imageHeight; j ++ )
 				for (int i =  0 ; i < imageWidth ; i ++)
@@ -220,13 +226,8 @@ public class Interface extends JFrame{
 		public void actionPerformed(ActionEvent e) {
 			if (pixels == null)
 				return;
-			//save history
-			if (pointer != (history.size() - 1) && !history.isEmpty())
-				for (int i = pointer + 1 ; i < history.size(); i++)
-					history.remove(i);
-			history.add(pixels.clone());
-			pointer = history.size() - 1;
-			System.out.println(pointer +  " " + history.size());
+			
+			saveHistory();
 			
 			findMinMaxL();
 			
@@ -288,18 +289,15 @@ public class Interface extends JFrame{
 	{
 		@Override
 		public void actionPerformed(ActionEvent e) {
-			marker_prev = true;
-			if (pointer == -1 || history.isEmpty()){
+			if (previous.size() <= 0){
 				JOptionPane.showMessageDialog(null, "This is the first one");
 				return;
 			}
-			//指针不在头部时
-			if (pointer == (history.size() - 1))
-				history.add(pixels.clone());
-			pixels = history.get(pointer);
-			pointer -- ;
 			
-			System.out.println(pointer +  " " + history.size());
+			next.add(pixels.clone());
+			pixels = previous.get(previous.size() - 1).clone();
+			previous.remove(previous.size() - 1);
+			
 			overrideImage();
 		}
 	}
@@ -308,19 +306,15 @@ public class Interface extends JFrame{
 	{
 		@Override
 		public void actionPerformed(ActionEvent e) {
-			if (pointer >= (history.size() - 1) || history.isEmpty() ){
+			if (next.size()<=0){
 				JOptionPane.showMessageDialog(null, "This is the last one");
 				return;
 			}
-			++pointer;
-			if (marker_prev == true){
-				pixels = history.get(++pointer);
-				marker_prev = false;
-			}
-			else
-				pixels = history.get(pointer);
-
-			System.out.println(pointer +  " " + history.size());
+		
+			previous.add(pixels.clone());
+			pixels = next.get(0).clone();
+			next.remove(0);
+			
 			overrideImage();
 		}
 	}
@@ -329,7 +323,13 @@ public class Interface extends JFrame{
 		new Interface();
 	}
 	
-	private void overrideImage() {
+	public void saveHistory(){
+		//save history
+		next = new ArrayList<int[]>();
+		previous.add(pixels.clone());
+	}
+	
+	public void overrideImage() {
         image.setIcon(new ImageIcon(
         		createImage(new MemoryImageSource(imageWidth, imageHeight, pixels, 0, imageWidth))));
         image.repaint();

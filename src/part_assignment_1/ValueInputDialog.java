@@ -1,6 +1,4 @@
-package 图像处理HW1;
-
-import 图像处理HW1.Interface;
+package part_assignment_1;
 
 import java.awt.BorderLayout;
 import java.awt.GridLayout;
@@ -13,6 +11,8 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
+
+import part_assignment_1.Interface;
 
 public class ValueInputDialog extends JDialog{
 	
